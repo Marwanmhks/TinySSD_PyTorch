@@ -16,7 +16,7 @@ train_file_path = '2077_train.txt'
 val_file_path = '2077_val.txt'
 anchor_sizes_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\anchor_sizes.txt'
 anchor_ratios_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\anchor_ratios.txt'
-
+iterations = 12000
 
 def train():
     # ---------------------------------------------------------
@@ -27,7 +27,7 @@ def train():
     with open(train_file_path) as f:
         train_lines = f.readlines()
     train_dataset = MyDataSet(train_lines, r, mode='train')
-    train_iter = DataLoader(train_dataset, batch_size=64, num_workers=4, shuffle=True, pin_memory=True, drop_last=True,
+    train_iter = DataLoader(train_dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True, drop_last=True,
                             collate_fn=dataset_collate)
 
     # ---------------------------------------------------------
@@ -36,7 +36,7 @@ def train():
     with open(train_file_path) as f:
         val_lines = f.readlines()
     val_dataset = MyDataSet(val_lines, r, mode='validate')
-    val_iter = DataLoader(val_dataset, batch_size=64, num_workers=4, shuffle=True, pin_memory=True, drop_last=True,
+    val_iter = DataLoader(val_dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True, drop_last=True,
                           collate_fn=dataset_collate)
     # --------------------------- ------------------------------
     #               Generate a prior anchor box
@@ -68,13 +68,14 @@ def train():
     # ---------------------------------------------------------
     #                       Start training
     # ---------------------------------------------------------
-    num_epochs, timer = 300, Timer()
+    num_epochs, timer = (iterations // (len(train_dataset) // 32)), Timer()
     timer.start()
     animator = Animator(xlabel='epoch', xlim=[1, num_epochs], legend=['class error', 'bbox mae'])
     net = net.to(device)
     anchors = anchors.to(device)
     cls_loss, bbox_loss = None, None
     for epoch in range(num_epochs):
+        print(f' epochs: {num_epochs}')
         print(f' learning rate: {scheduler_lr.get_last_lr()}')
         metric = Accumulator(4)
         net.train()
@@ -93,18 +94,18 @@ def train():
             trainer.step()
             metric.add(cls_eval(cls_preds, cls_labels), num_classes, bbox_eval(bbox_preds, bbox_labels, bbox_masks), 1)
 
-        for features, target in tqdm(val_iter):
+        net.eval()
+        for features, target in enumerate(val_iter):
             X, Y = features.to(device), target.to(device)  # (bs, 3, h, w) (bs, 100, 5)
-
+            with torch.no_grad():
             # Predict the class and offset for each anchor box (multi-scale results are merged)
-            cls_preds, bbox_preds = net(X)  # (bs, anchors, (1+c)) (bs, anchors*4)
+                cls_preds, bbox_preds = net(X)  # (bs, anchors, (1+c)) (bs, anchors*4)
             # Label the category and offset for each anchor box (bs, anchors*4) (bs, anchors*4) (bs, anchors)
-            bbox_labels, bbox_masks, cls_labels = multibox_target(anchors, Y)
+                bbox_labels, bbox_masks, cls_labels = multibox_target(anchors, Y)
 
             # Calculate loss function based on predicted and labeled values of class and offset
-            l = calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks)
-            l.backward()
-            validator.step()
+                loss = calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks)
+
 
 
         # learning rate decay
