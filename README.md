@@ -1,2 +1,1 @@
-# TinySSD_Banana
- BANANAAAAAAA
+# TinySSD_PyTorch
