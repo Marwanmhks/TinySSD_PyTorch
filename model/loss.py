@@ -18,6 +18,22 @@ def focal_loss(cls_preds, cls_labels, gamma=2):
     return cls.reshape(batch_size, -1).mean(dim=1)
 
 
+def focal_loss(cls_preds, cls_labels, gamma=2):
+    """ Calculate class loss
+    :param cls_preds: (bs, anchors, 1+c)
+    :param cls_labels: (bs, anchors)
+    :param gamma: int default->2
+    :return: (bs,)
+    """
+    batch_size, num_classes = cls_preds.shape[0], cls_preds.shape[2]
+    cls_preds = cls_preds.reshape(-1, num_classes)
+    cls_labels = cls_labels.reshape(-1)
+    cls_preds = F.softmax(cls_preds, dim=1)
+    x = cls_preds[torch.arange(cls_labels.shape[0]), cls_labels]
+    cls = -(1 - x) ** gamma * torch.log(x)
+    return cls.reshape(batch_size, -1).mean(dim=1)
+
+
 def smooth_l1_loss(bbox_preds, bbox_labels, bbox_masks, sigma=1):
     """ Calculate class border loss
     :param bbox_preds: (bs, anchors*4)
@@ -36,7 +52,7 @@ def smooth_l1_loss(bbox_preds, bbox_labels, bbox_masks, sigma=1):
     return torch.sum(loss, dim=1) / active_items
 
 
-def calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks, alpha = 0.01):
+def calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks, alpha=0.01):
     """ Overall loss function
     :param cls_preds: (bs, anchors, 1+c)
     :param cls_labels: (bs, anchors)
@@ -62,7 +78,7 @@ def cls_eval(cls_preds, cls_labels):
 
 
 @torch.no_grad()
-def bbox_eval(bbox_preds, bbox_labels, bbox_masks, alpha = 0.01):
+def bbox_eval(bbox_preds, bbox_labels, bbox_masks, alpha=0.01):
     """ Boundary regression loss evaluation
     :param bbox_preds: (bs, anchors*4)
     :param bbox_labels: (bs, anchors*4)

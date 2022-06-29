@@ -1,3 +1,4 @@
+import os
 from tqdm import tqdm
 from utils.tools import *
 from utils.dataLoader import MyDataSet, dataset_collate
@@ -10,13 +11,16 @@ from model.loss import *
 # ---------------------------------------------------------
 # configuration information
 # ---------------------------------------------------------
-voc_classes_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\voc_classes.txt'
-image_size_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\image_size.txt'
+Dir_path = 'C:\\Users\\Marwan\\PycharmProjects\\TinySSD_Banana\\TinySSD_Banana'
+voc_classes_path = os.path.join(Dir_path, 'model_data\\voc_classes.txt')
+image_size_path = os.path.join(Dir_path, 'model_data\\image_size.txt')
 train_file_path = '2077_train.txt'
 val_file_path = '2077_val.txt'
-anchor_sizes_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\anchor_sizes.txt'
-anchor_ratios_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\anchor_ratios.txt'
+anchor_sizes_path = os.path.join(Dir_path, 'model_data\\anchor_sizes.txt')
+anchor_ratios_path = os.path.join(Dir_path, 'model_data\\anchor_ratios.txt')
 iterations = 12000
+batch_size = 64
+
 
 def train():
     # ---------------------------------------------------------
@@ -27,16 +31,18 @@ def train():
     with open(train_file_path) as f:
         train_lines = f.readlines()
     train_dataset = MyDataSet(train_lines, r, mode='train')
-    train_iter = DataLoader(train_dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True, drop_last=True,
+    train_iter = DataLoader(train_dataset, batch_size=batch_size, num_workers=4, shuffle=True, pin_memory=True,
+                            drop_last=True,
                             collate_fn=dataset_collate)
 
     # ---------------------------------------------------------
     #                   Load validation Data
     # ---------------------------------------------------------
-    with open(train_file_path) as f:
+    with open(val_file_path) as f:
         val_lines = f.readlines()
     val_dataset = MyDataSet(val_lines, r, mode='validate')
-    val_iter = DataLoader(val_dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True, drop_last=True,
+    val_iter = DataLoader(val_dataset, batch_size=batch_size, num_workers=4, shuffle=True, pin_memory=True,
+                          drop_last=True,
                           collate_fn=dataset_collate)
     # --------------------------- ------------------------------
     #               Generate a prior anchor box
@@ -56,29 +62,34 @@ def train():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # noinspection PyBroadException
     try:
-        net.load_state_dict(torch.load('C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\result.pt'))
+        net.load_state_dict(torch.load(os.path.join(Dir_path, 'model_data\\result.pt')))
         print("Fine-Tuning...")
     except:
         print("Training from scratch...")
-    trainer = torch.optim.SGD(net.parameters(), lr=0.2, weight_decay=5e-4)
-    validator = torch.optim.SGD(net.parameters(), lr=0.2, weight_decay=5e-4)
-    # trainer = torch.optim.Adam(net.parameters(), lr=0.03, weight_decay=5e-5)
-    scheduler_lr = torch.optim.lr_scheduler.CosineAnnealingLR(trainer, 100)
 
+    trainer = torch.optim.Adam(net.parameters(), lr=0.0037, weight_decay=0.0011)
+    # trainer = torch.optim.Adam(net.parameters(), lr=0.03, weight_decay=5e-5)
+
+    # scheduler_lr = torch.optim.lr_scheduler.CosineAnnealingLR(trainer, 100)
+    scheduler_lr = torch.optim.lr_scheduler.StepLR(trainer, step_size=1, gamma=0.1)
     # ---------------------------------------------------------
     #                       Start training
     # ---------------------------------------------------------
-    num_epochs, timer = (iterations // (len(train_dataset) // 32)), Timer()
+    num_epochs, timer = (iterations // (len(train_dataset) // batch_size)), Timer()
+    print(f' epochs: {num_epochs}')
     timer.start()
-    animator = Animator(xlabel='epoch', xlim=[1, num_epochs], legend=['class error', 'bbox mae'])
+    # animator = Animator(xlabel='Epoch', xlim=[1, num_epochs], legend=['Class Error', 'Bbox MeanAvgError'])
+    animator = Animator(xlabel='Epoch', xlim=[1, num_epochs], legend=['t-loss', 'v-loss'])
     net = net.to(device)
     anchors = anchors.to(device)
-    cls_loss, bbox_loss = None, None
+    # training_cls_loss, training_bbox_loss = None, None
+    # validating_cls_loss, validating_bbox_loss = None, None
     for epoch in range(num_epochs):
-        print(f' epochs: {num_epochs}')
         print(f' learning rate: {scheduler_lr.get_last_lr()}')
-        metric = Accumulator(4)
+        # training_metric = Accumulator(4)
+        # validating_metric = Accumulator(4)
         net.train()
+        # training_loss = 0.0
         for features, target in tqdm(train_iter):
             trainer.zero_grad()
             X, Y = features.to(device), target.to(device)  # (bs, 3, h, w) (bs, 100, 5)
@@ -89,37 +100,47 @@ def train():
             bbox_labels, bbox_masks, cls_labels = multibox_target(anchors, Y)
 
             # Calculate loss function based on predicted and labeled values of class and offset
-            l = calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks)
-            l.backward()
+            train_loss = calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks)
+            train_loss.backward()
             trainer.step()
-            metric.add(cls_eval(cls_preds, cls_labels), num_classes, bbox_eval(bbox_preds, bbox_labels, bbox_masks), 1)
+            # training_loss += train_loss.item()
+            # training_metric.add(cls_eval(cls_preds, cls_labels), 1, bbox_eval(bbox_preds, bbox_labels, bbox_masks), 1)
 
         net.eval()
-        for features, target in enumerate(val_iter):
+        validating_loss = 0.0
+        for features, target in tqdm(val_iter):
             X, Y = features.to(device), target.to(device)  # (bs, 3, h, w) (bs, 100, 5)
             with torch.no_grad():
-            # Predict the class and offset for each anchor box (multi-scale results are merged)
+                # Predict the class and offset for each anchor box (multi-scale results are merged)
                 cls_preds, bbox_preds = net(X)  # (bs, anchors, (1+c)) (bs, anchors*4)
-            # Label the category and offset for each anchor box (bs, anchors*4) (bs, anchors*4) (bs, anchors)
+                # Label the category and offset for each anchor box (bs, anchors*4) (bs, anchors*4) (bs, anchors)
                 bbox_labels, bbox_masks, cls_labels = multibox_target(anchors, Y)
 
-            # Calculate loss function based on predicted and labeled values of class and offset
-                loss = calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks)
-
-
+                # Calculate loss function based on predicted and labeled values of class and offset
+                # val_loss = calc_loss(cls_preds, cls_labels, bbox_preds, bbox_labels, bbox_masks)
+                cls_loss = cls_eval(cls_preds, cls_labels)
+                bbox_loss = bbox_eval(bbox_preds, bbox_labels, bbox_masks)
+                val_loss = cls_loss + bbox_loss
+                validating_loss += val_loss.item()
 
         # learning rate decay
         scheduler_lr.step()
 
         # reserved for display
-        cls_loss, bbox_loss = metric[0] / metric[1], metric[2] / metric[3]
-        animator.add(epoch + 1, (cls_loss, bbox_loss))
-        print(f'epoch {epoch + 1}/{num_epochs}: ', 'cls-loss: ', cls_loss, ' box-loss', bbox_loss)
+        # training_cls_loss, training_bbox_loss = training_metric[0] / training_metric[1], training_metric[2] / training_metric[3]
+        # validating_cls_loss, validating_bbox_loss = validating_metric[0] / validating_metric[1], validating_metric[2] / validating_metric[3]
+
+        animator.add(epoch + 1, validating_loss)
+        print(f'epoch {epoch + 1}/{num_epochs}: ', ' v-loss', validating_loss)
+
+        # animator.add(epoch + 1, (training_cls_loss, training_bbox_loss))
+        # print(f'epoch {epoch + 1}/{num_epochs}: ', 't-cls-loss: ', training_cls_loss, ' t-box-loss', training_bbox_loss)
 
         # Save the trained model for each epoch
         torch.save(net.state_dict(), f'model_data/result_{epoch + 1}.pt')
 
-    print(f'class loss {cls_loss:.2e}, bbox loss {bbox_loss:.2e}')
+    print(f'validation loss {validating_loss:.2e}')
+    # print(f'class loss {validating_cls_loss:.2e}, bbox loss {validating_bbox_loss:.2e}')
     print(f'total time: {timer.stop():.1f}s', f' on {str(device)}')
 
 

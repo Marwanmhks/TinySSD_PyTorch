@@ -21,7 +21,7 @@ def showres(_image, _output, _threshold, _name_classes):
         if score < _threshold: continue
         bbox = [row[2:6]]
         abox = [row[6:10]]
-        show_bboxes(fig.axes, abox, f'{_class}[{score:.2f}]', 'w') # show the corresponding anchors
+        # show_bboxes(fig.axes, abox, f'{_class}[{score:.2f}]', 'w') # show the corresponding anchors
         show_bboxes(fig.axes, bbox, f'{_class}[{score:.2f}]', 'b') # '%.2f'%value formatted output
 
 
@@ -54,5 +54,5 @@ except KeyboardInterrupt:
 image = Image.open('C:\\Users\Marwan\PycharmProjects\TinySSD_Banana\TinySSD_Banana\VOCdevkit\\test.jpg').convert('RGB')
 ssd = Tiny_SSD()
 output = ssd.inference(image).to('cpu')
-showres(image, output, 0.14, ssd.name_classes)
+showres(image, output, 0.4, ssd.name_classes)
 plt.pause(30)

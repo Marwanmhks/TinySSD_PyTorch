@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from torchvision import transforms
 from PIL import Image
 
+
 def get_classes(path):
     """ Get the category and the number of categories
     :param path: file path
@@ -26,6 +27,7 @@ def get_anchor_info(path):
     anchor_infos = [list(map(float, c.strip().split())) for c in anchor_infos]
     return anchor_infos
 
+
 def get_image_size(path):
     """ Get input image size
     :param path: file path
@@ -34,6 +36,7 @@ def get_image_size(path):
     with open(path, encoding='utf-8') as f:
         r = f.readlines()
     return int(r[0])
+
 
 def cvtColor(image):
     """ Convert image to RGB image
@@ -54,18 +57,20 @@ def img_preprocessing(_img, img_sz):
     :return: tensor_img (C,H,W) 0~1
     """
     r = img_sz
-    if hasattr(_img, 'size'): iw, ih = _img.size #
-    else: iw, ih, _ = _img.shape
+    if hasattr(_img, 'size'):
+        iw, ih = _img.size  #
+    else:
+        iw, ih, _ = _img.shape
     scale = min(r / iw, r / ih)
     nw = round(iw * scale)
     nh = round(ih * scale)
-    dx = (r - nw) // 2 # one of them is 0
-    dy = (r - nh) // 2 # one of them is 0
+    dx = (r - nw) // 2  # one of them is 0
+    dy = (r - nh) // 2  # one of them is 0
     _img = _img.resize((nw, nh), Image.BICUBIC)
     new_image = Image.new('RGB', (r, r), (128, 128, 128))
     new_image.paste(_img, (dx, dy))
     transform = transforms.Compose([
-        transforms.ToTensor(), # PIL -> tensor [0~1]
+        transforms.ToTensor(),  # PIL -> tensor [0~1]
     ])
     return transform(new_image)
 
@@ -78,12 +83,14 @@ def show_bboxes(axes, bboxes, labels=None, colors=None):
     :param colors: default = None
     :return: None
     """
+
     def _make_list(obj, default_values=None):
         if obj is None:
             obj = default_values
         elif not isinstance(obj, (list, tuple)):
             obj = [obj]
         return obj
+
     labels = _make_list(labels)
     colors = _make_list(colors, ['b', 'g', 'r', 'm', 'c'])
     for i, bbox in enumerate(bboxes):
@@ -108,6 +115,7 @@ def try_gpu():
 
 class Timer:
     """ Record multiple running times"""
+
     def __init__(self):
         self.tik = None
         self.times = []
@@ -137,6 +145,7 @@ class Timer:
 
 class Accumulator:
     """For accumulating sums over `n` variables."""
+
     def __init__(self, n):
         self.data = [0.0] * n
 
@@ -163,8 +172,10 @@ def set_axes(axes, xlabel, ylabel, xlim, ylim, xscale, yscale, legend):
         axes.legend(legend)
     axes.grid()
 
+
 class Animator:
     """For plotting data in animation.(Incrementally plot multiple lines)"""
+
     def __init__(self, xlabel=None, ylabel=None, legend=None, xlim=None, ylim=0, xscale='linear', yscale='linear',
                  fmts=('-', 'm--', 'g-.', 'r:'), nrows=1, ncols=1, figsize=(8, 6)):
         if legend is None: legend = []

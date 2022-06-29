@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+
 # ------------------------------------------------- ---------------
 # Take branch for prediction
 # ------------------------------------------------- ---------------
@@ -12,7 +13,7 @@ def gen_cls_predictor(in_channels, app, cn):
     :return: nn.Conv
     """
     blk = []
-    out_channels = app * (cn + 1) # Add background class
+    out_channels = app * (cn + 1)  # Add background class
     # blk.extend([nn.Conv2d(in_channels, in_channels, 3, 1, 1, groups=in_channels),
     # nn.Conv2d(in_channels, out_channels, 1, 1, 0),
     # ]) # dw pw
@@ -33,7 +34,7 @@ def gen_bbox_predictor(in_channels, app):
     # nn.Conv2d(in_channels, out_channels, 1, 1, 0),
     # ])
     blk.extend([nn.Conv2d(in_channels, out_channels, 3, 1, 1),
-                ]) # dw pw
+                ])  # dw pw
     return nn.Sequential(*blk)
 
 
@@ -42,8 +43,10 @@ def concat_preds(preds):
     :param preds: For category predictions: list((bs, bpp*(1+c), fhi, fwi)*5. For bounding box predictions: list((bs, app*4, fhi, fwi))*5
     :return: For class prediction(bs, anchors*(c+1)). For bounding box prediction(bs, anchors*4)
     """
+
     def flatten_pred(pred):
-        return torch.flatten(pred.permute(0, 2, 3, 1), start_dim=1) # (bs, -1)
+        return torch.flatten(pred.permute(0, 2, 3, 1), start_dim=1)  # (bs, -1)
+
     return torch.cat([flatten_pred(p) for p in preds], dim=1)
 
 
@@ -69,6 +72,7 @@ class ChannelAttention(nn.Module):
         out = avg_out + max_out
         return self.sigmoid(out)
 
+
 class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=7):
         super(SpatialAttention, self).__init__()
@@ -85,6 +89,7 @@ class SpatialAttention(nn.Module):
         x = self.conv1(x)
         return self.sigmoid(x)
 
+
 class cbam_block(nn.Module):
     def __init__(self, channel, ratio=8, kernel_size=7):
         super(cbam_block, self).__init__()
@@ -92,8 +97,8 @@ class cbam_block(nn.Module):
         self.spatialattention = SpatialAttention(kernel_size=kernel_size)
 
     def forward(self, x):
-        x = x*self.channelattention(x)
-        x = x*self.spatialattention(x)
+        x = x * self.channelattention(x)
+        x = x * self.spatialattention(x)
         return x
 
 
@@ -113,7 +118,7 @@ def down_sample_blk(in_channels, out_channels):
         blk.append(nn.ReLU())
         in_channels = out_channels
     blk.append(nn.MaxPool2d(2))
-    blk.append(cbam_block(out_channels, 4)) # Add attention mechanism
+    blk.append(cbam_block(out_channels, 4))  # Add attention mechanism
     return nn.Sequential(*blk)
 
 
@@ -124,7 +129,7 @@ def base_net():
     blk = []
     num_filters = [3, 16, 24, 48]
     for i in range(len(num_filters) - 1):
-        blk.append(down_sample_blk(num_filters[i], num_filters[i+1]))
+        blk.append(down_sample_blk(num_filters[i], num_filters[i + 1]))
     return nn.Sequential(*blk)
 
 
@@ -138,7 +143,7 @@ def get_blk(i):
     elif i == 1:
         blk = down_sample_blk(48, 64)
     elif i == 4:
-        blk = nn.AdaptiveMaxPool2d((1,1))
+        blk = nn.AdaptiveMaxPool2d((1, 1))
     else:
         blk = down_sample_blk(64, 64)
     return blk
@@ -185,14 +190,15 @@ class TinySSD(nn.Module):
                 getattr(self, f'cls_{i}'),
                 getattr(self, f'bbox_{i}')
             )
-        cls_preds = concat_preds(cls_preds) # (bs, anchors*4)
-        cls_preds = cls_preds.reshape(cls_preds.shape[0], -1, self.num_classes + 1) # (bs, anchors, (1+c))
-        bbox_preds = concat_preds(bbox_preds) # (bs, anchors*4)
+        cls_preds = concat_preds(cls_preds)  # (bs, anchors*4)
+        cls_preds = cls_preds.reshape(cls_preds.shape[0], -1, self.num_classes + 1)  # (bs, anchors, (1+c))
+        bbox_preds = concat_preds(bbox_preds)  # (bs, anchors*4)
         return cls_preds, bbox_preds
 
 
 if __name__ == '__main__':
     net = TinySSD(4, 1)
     from torchsummary import summary
+
     summary(net.cuda(), (3, 320, 320))
     # summary(net, (3, 320, 320), device='cpu') # No GPU use this

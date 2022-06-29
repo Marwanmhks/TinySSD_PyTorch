@@ -28,7 +28,8 @@ if __name__ == "__main__":
     # The classes_path here is used to specify the categories that need to measure the VOC_map
     # In general, it can be consistent with the classes_path used for training and prediction
     # ------------------------------------------------- ------#
-    classes_path = 'C:\\Users\Marwan\PycharmProjects\TinySSD_Banana\TinySSD_Banana\model_data\\voc_classes.txt'
+    Dir_path = 'C:\\Users\\Marwan\\PycharmProjects\\TinySSD_Banana\\TinySSD_Banana'
+    classes_path = os.path.join(Dir_path, 'model_data\\voc_classes.txt')
     # ------------------------------------------------- ------#
     # MINOVERLAP is used to specify the mAP0.x you want to get
     # For example, to calculate mAP0.75, you can set MINOVERLAP = 0.75

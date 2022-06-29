@@ -21,7 +21,8 @@ annotation_mode = 0
 trainval_percent = 0.9
 train_percent = 0.9
 
-classes_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\model_data\\voc_classes.txt'
+Dir_path = 'C:\\Users\\Marwan\\PycharmProjects\\TinySSD_Banana\\TinySSD_Banana'
+classes_path = os.path.join(Dir_path, 'model_data\\voc_classes.txt')
 classes, _ = get_classes(classes_path)
 
 # -------------------------------------------------
@@ -29,7 +30,7 @@ classes, _ = get_classes(classes_path)
 # Default points to the VOC dataset in the root directory
 # -------------------------------------------------
 year = 2077
-VOCdevkit_path = 'C:\\Users\\Omar\\Desktop\\TinySSD_Banana\\VOCdevkit'
+VOCdevkit_path = os.path.join(Dir_path, 'VOCdevkit')
 VOCdevkit_sets = [(f'{year}', 'train'), (f'{year}', 'val'), (f'{year}', 'test')]
 
 
